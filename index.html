@@ -156,28 +156,33 @@
 
     <div class="row2">
       <div class="field">
+        <label data-i18n="lblCountry"></label>
+        <select id="country"></select>
+      </div>
+      <div class="field">
         <label data-i18n="lblCity"></label>
         <input type="text" id="city" required />
       </div>
-      <div class="field">
-        <label data-i18n="lblType"></label>
-        <select id="businessType" required>
-          <option value="florist" data-i18n="typeFlorist"></option>
-          <option value="gift_shop" data-i18n="typeGift"></option>
-          <option value="confectioner" data-i18n="typeConfectioner"></option>
-          <option value="certificates" data-i18n="typeCertificates"></option>
-        </select>
-      </div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="lblType"></label>
+      <select id="businessType" required>
+        <option value="florist" data-i18n="typeFlorist"></option>
+        <option value="gift_shop" data-i18n="typeGift"></option>
+        <option value="confectioner" data-i18n="typeConfectioner"></option>
+        <option value="certificates" data-i18n="typeCertificates"></option>
+      </select>
     </div>
 
     <div class="row2">
       <div class="field">
-        <label>NIP <span class="required">*</span></label>
-        <input type="text" id="nip" required />
+        <label id="taxIdLabel"></label>
+        <input type="text" id="taxId" required />
       </div>
-      <div class="field">
-        <label>REGON <span class="required">*</span></label>
-        <input type="text" id="regon" required />
+      <div class="field" id="secondaryIdField">
+        <label id="secondaryIdLabel"></label>
+        <input type="text" id="secondaryId" />
       </div>
     </div>
 
@@ -211,6 +216,17 @@
   var SUPABASE_URL = "https://wdkntigydzioidhhktcb.supabase.co";
   var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indka250aWd5ZHppb2lkaGhrdGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMzgxMzgsImV4cCI6MjA5ODkxNDEzOH0.tnbdFXrO_aytdjxasUmtAzouJSaSi3P133HuDq6mveQ";
 
+  // Mirrors src/constants/countries.js — only Poland has a second identifier
+  // (REGON) alongside its primary tax id; everywhere else that field is hidden.
+  var COUNTRIES = [
+    { code: "PL", name: "Polska", taxIdLabel: "NIP", secondaryIdLabel: "REGON" },
+    { code: "UA", name: "Україна", taxIdLabel: "ЄДРПОУ / ІПН", secondaryIdLabel: null },
+    { code: "US", name: "United States", taxIdLabel: "EIN", secondaryIdLabel: null },
+    { code: "CA", name: "Canada", taxIdLabel: "Business Number (BN)", secondaryIdLabel: null },
+    { code: "GB", name: "United Kingdom", taxIdLabel: "Company Number / UTR", secondaryIdLabel: null },
+    { code: "EU", name: "Інша країна ЄС", taxIdLabel: "VAT number", secondaryIdLabel: null },
+  ];
+
   var i18n = {
     uk: {
       title: "Стань партнером Flowermind",
@@ -219,6 +235,7 @@
       benefit2: "Керуй каталогом і замовленнями просто з телефону",
       benefit3: "Нові клієнти з усього міста, без власної реклами",
       lblCompany: "Назва компанії *",
+      lblCountry: "Країна *",
       lblCity: "Місто *",
       lblType: "Тип партнерства *",
       typeFlorist: "Флорист / квітковий магазин",
@@ -242,6 +259,7 @@
       benefit2: "Zarządzaj katalogiem i zamówieniami prosto z telefonu",
       benefit3: "Nowi klienci z całego miasta, bez własnej reklamy",
       lblCompany: "Nazwa firmy *",
+      lblCountry: "Kraj *",
       lblCity: "Miasto *",
       lblType: "Typ partnerstwa *",
       typeFlorist: "Kwiaciarnia",
@@ -261,6 +279,31 @@
   };
 
   var currentLang = "uk";
+
+  var countrySelect = document.getElementById("country");
+  COUNTRIES.forEach(function (c) {
+    var opt = document.createElement("option");
+    opt.value = c.code;
+    opt.textContent = c.name;
+    countrySelect.appendChild(opt);
+  });
+
+  function updateIdLabels() {
+    var c = COUNTRIES.filter(function (x) { return x.code === countrySelect.value; })[0] || COUNTRIES[0];
+    document.getElementById("taxIdLabel").textContent = c.taxIdLabel + " *";
+    var secondaryField = document.getElementById("secondaryIdField");
+    if (c.secondaryIdLabel) {
+      secondaryField.style.display = "";
+      document.getElementById("secondaryIdLabel").textContent = c.secondaryIdLabel;
+      document.getElementById("secondaryId").required = true;
+    } else {
+      secondaryField.style.display = "none";
+      document.getElementById("secondaryId").required = false;
+      document.getElementById("secondaryId").value = "";
+    }
+  }
+  countrySelect.addEventListener("change", updateIdLabels);
+  updateIdLabels();
 
   function setLang(lang) {
     currentLang = lang;
@@ -287,11 +330,13 @@
     successBanner.classList.remove("show");
     errorBanner.classList.remove("show");
 
+    var selectedCountry = COUNTRIES.filter(function (x) { return x.code === countrySelect.value; })[0] || COUNTRIES[0];
     var payload = {
       p_company_name: document.getElementById("companyName").value.trim(),
       p_city: document.getElementById("city").value.trim(),
-      p_nip: document.getElementById("nip").value.trim(),
-      p_regon: document.getElementById("regon").value.trim(),
+      p_country: countrySelect.value,
+      p_tax_id: document.getElementById("taxId").value.trim(),
+      p_secondary_id: document.getElementById("secondaryId").value.trim() || null,
       p_business_type: document.getElementById("businessType").value,
       p_contact_name: document.getElementById("contactName").value.trim(),
       p_contact_phone: document.getElementById("contactPhone").value.trim(),
@@ -299,7 +344,11 @@
       p_message: document.getElementById("message").value.trim() || null,
     };
 
-    if (!payload.p_company_name || !payload.p_city || !payload.p_nip || !payload.p_regon || !payload.p_contact_name || !payload.p_contact_phone) {
+    if (
+      !payload.p_company_name || !payload.p_city || !payload.p_tax_id ||
+      (selectedCountry.secondaryIdLabel && !payload.p_secondary_id) ||
+      !payload.p_contact_name || !payload.p_contact_phone
+    ) {
       showBanner(errorBanner, successBanner, i18n[currentLang].errorRequired);
       return;
     }
@@ -320,6 +369,7 @@
         if (!res.ok) throw new Error("request failed");
         showBanner(successBanner, errorBanner, i18n[currentLang].successMsg);
         document.getElementById("applyForm").reset();
+        updateIdLabels();
       })
       .catch(function () {
         showBanner(errorBanner, successBanner, i18n[currentLang].errorMsg);
